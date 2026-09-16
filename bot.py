@@ -26,13 +26,13 @@ MAX_NUMBER = 1349
 MIN_INTERVAL = 900    # 15 минут
 MAX_INTERVAL = 2700   # 45 минут
 
-# Окно СТАРТА (МСК)
-START_WINDOW_START = dtime(9, 19)
-START_WINDOW_END   = dtime(9, 27)
+# Окно СТАРТА (МСК) — ночью
+START_WINDOW_START = dtime(23, 11)
+START_WINDOW_END   = dtime(23, 27)
 
-# Окно ЗАВЕРШЕНИЯ (последняя отправка не позже этого момента, МСК)
-END_WINDOW_START = dtime(20, 42)
-END_WINDOW_END   = dtime(20, 56)
+# Окно ЗАВЕРШЕНИЯ (МСК) — раннее утро следующего дня
+END_WINDOW_START = dtime(6, 42)
+END_WINDOW_END   = dtime(6, 56)
 
 MSK = ZoneInfo("Europe/Moscow")
 # ===============================================
@@ -50,28 +50,42 @@ def random_datetime_in_window(start_t: dtime, end_t: dtime, base_date) -> dateti
     return start_dt + timedelta(seconds=offset)
 
 def seconds_until_random_start() -> int:
-    """Определяет задержку до первой отправки."""
+    """Определяет задержку до первой отправки с учётом ночного окна."""
     now = datetime.now(MSK)
     today = now.date()
 
     start_dt = datetime.combine(today, START_WINDOW_START, tzinfo=MSK)
     end_dt   = datetime.combine(today, START_WINDOW_END,   tzinfo=MSK)
 
+    # 1. Ещё рано (до 23:11) — ждём случайную точку в окне старта
     if now < start_dt:
         total_seconds = int((end_dt - start_dt).total_seconds())
         offset = random.randint(0, total_seconds)
         target = start_dt + timedelta(seconds=offset)
         return max(int((target - now).total_seconds()), 0)
 
+    # 2. Внутри окна старта (23:11–23:27) — стартуем почти сразу
     if start_dt <= now <= end_dt:
         return random.randint(1, 60)
 
+    # 3. Окно старта уже прошло — стартуем сразу
     return 5
 
 def get_end_deadline() -> datetime:
-    """Случайный дедлайн окончания (20:42–20:56 МСК) для сегодняшнего дня."""
+    """
+    Случайный дедлайн окончания (06:42–06:56 МСК).
+    Если сейчас ночь (после 23:00) — дедлайн ставится на завтра.
+    """
     now = datetime.now(MSK)
-    return random_datetime_in_window(END_WINDOW_START, END_WINDOW_END, now.date())
+
+    # Если сейчас после полуночи и до 7 утра — дедлайн сегодня
+    if now.hour < 7:
+        base_date = now.date()
+    else:
+        # Если вечер/день — дедлайн на завтрашнее утро
+        base_date = now.date() + timedelta(days=1)
+
+    return random_datetime_in_window(END_WINDOW_START, END_WINDOW_END, base_date)
 
 def schedule_next(context, deadline: datetime):
     """Планирует следующую отправку через случайный интервал, но не позже deadline."""
@@ -95,7 +109,7 @@ async def send_random_message(context):
 
     try:
         number = random.randint(MIN_NUMBER, MAX_NUMBER)
-        percent = int(number * 0.7)          # 70% от числа, округление вниз
+        percent = int(number * 0.7)
         now_msk = datetime.now(MSK).strftime("%H:%M:%S")
         text = MESSAGE_TEMPLATE.format(number=number, percent=percent, time=now_msk)
         await context.bot.send_message(
@@ -121,7 +135,7 @@ def main():
 
     deadline = get_end_deadline()
     application.bot_data["deadline"] = deadline
-    logging.info(f"Дедлайн окончания: {deadline.strftime('%H:%M:%S')} МСК")
+    logging.info(f"Дедлайн окончания: {deadline.strftime('%d.%m %H:%M:%S')} МСК")
 
     delay = seconds_until_random_start()
     logging.info(f"Старт запланирован через {delay // 60} мин {delay % 60} сек.")
