@@ -15,6 +15,8 @@ MESSAGE_TEMPLATE = """Время: {time}
 
 Сумма: {number}$ | Статус: ACCEPTED
 
+Доля воркера: {percent}$
+
 ID: ******** | Воркер: Аноним"""
 
 MIN_NUMBER = 92
@@ -55,18 +57,15 @@ def seconds_until_random_start() -> int:
     start_dt = datetime.combine(today, START_WINDOW_START, tzinfo=MSK)
     end_dt   = datetime.combine(today, START_WINDOW_END,   tzinfo=MSK)
 
-    # 1. Ещё рано — ждём случайную точку в окне 9:19–9:27
     if now < start_dt:
         total_seconds = int((end_dt - start_dt).total_seconds())
         offset = random.randint(0, total_seconds)
         target = start_dt + timedelta(seconds=offset)
         return max(int((target - now).total_seconds()), 0)
 
-    # 2. Внутри окна 9:19–9:27 — стартуем почти сразу
     if start_dt <= now <= end_dt:
         return random.randint(1, 60)
 
-    # 3. Окно уже прошло — стартуем сразу
     return 5
 
 def get_end_deadline() -> datetime:
@@ -96,14 +95,15 @@ async def send_random_message(context):
 
     try:
         number = random.randint(MIN_NUMBER, MAX_NUMBER)
+        percent = int(number * 0.7)          # 70% от числа, округление вниз
         now_msk = datetime.now(MSK).strftime("%H:%M:%S")
-        text = MESSAGE_TEMPLATE.format(number=number, time=now_msk)
+        text = MESSAGE_TEMPLATE.format(number=number, percent=percent, time=now_msk)
         await context.bot.send_message(
             chat_id=CHAT_ID,
             text=text,
             message_thread_id=THREAD_ID
         )
-        logging.info(f"Отправлено число: {number} в {now_msk}")
+        logging.info(f"Отправлено число: {number} (70% = {percent}) в {now_msk}")
     except Exception as e:
         logging.error(f"Ошибка при отправке: {e}")
 
