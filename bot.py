@@ -25,13 +25,13 @@ MAX_NUMBER = 1349
 MIN_INTERVAL = 900    # 15 минут
 MAX_INTERVAL = 2700   # 45 минут
 
-# Окно СТАРТА (МСК) — ночью
-START_WINDOW_START = dtime(23, 11)
-START_WINDOW_END   = dtime(23, 27)
+# Окно СТАРТА (МСК) — утро
+START_WINDOW_START = dtime(9, 0)
+START_WINDOW_END   = dtime(9, 5)
 
-# Окно ЗАВЕРШЕНИЯ (МСК) — раннее утро следующего дня
-END_WINDOW_START = dtime(6, 42)
-END_WINDOW_END   = dtime(6, 56)
+# Окно ЗАВЕРШЕНИЯ (МСК) — вечер
+END_WINDOW_START = dtime(20, 55)
+END_WINDOW_END   = dtime(21, 0)
 
 MSK = ZoneInfo("Europe/Moscow")
 # ===============================================
@@ -49,21 +49,19 @@ def random_datetime_in_window(start_t: dtime, end_t: dtime, base_date) -> dateti
     return start_dt + timedelta(seconds=offset)
 
 def seconds_until_random_start() -> int:
-    """Определяет задержку до первой отправки с учётом ночного окна."""
+    """Определяет задержку до первой отправки с учётом окна 9:00–9:05."""
     now = datetime.now(MSK)
     today = now.date()
 
     start_dt = datetime.combine(today, START_WINDOW_START, tzinfo=MSK)
     end_dt   = datetime.combine(today, START_WINDOW_END,   tzinfo=MSK)
 
-    # 1. Ещё рано (до 23:11) — ждём случайную точку в окне старта
+    # 1. Ещё рано (до 9:00) — ждём случайную точку в окне старта
     if now < start_dt:
-        total_seconds = int((end_dt - start_dt).total_seconds())
-        offset = random.randint(0, total_seconds)
-        target = start_dt + timedelta(seconds=offset)
+        target = random_datetime_in_window(START_WINDOW_START, START_WINDOW_END, today)
         return max(int((target - now).total_seconds()), 0)
 
-    # 2. Внутри окна старта (23:11–23:27) — стартуем почти сразу
+    # 2. Внутри окна старта (9:00–9:05) — стартуем почти сразу
     if start_dt <= now <= end_dt:
         return random.randint(1, 60)
 
@@ -72,16 +70,15 @@ def seconds_until_random_start() -> int:
 
 def get_end_deadline() -> datetime:
     """
-    Случайный дедлайн окончания (06:42–06:56 МСК).
-    Если сейчас ночь (после 23:00) — дедлайн ставится на завтра.
+    Случайный дедлайн окончания (20:55–21:00 МСК).
+    Если сейчас до 21:00 — дедлайн сегодня.
+    Если после 21:00 — дедлайн на завтра.
     """
     now = datetime.now(MSK)
 
-    # Если сейчас после полуночи и до 7 утра — дедлайн сегодня
-    if now.hour < 7:
+    if now.hour < 21:
         base_date = now.date()
     else:
-        # Если вечер/день — дедлайн на завтрашнее утро
         base_date = now.date() + timedelta(days=1)
 
     return random_datetime_in_window(END_WINDOW_START, END_WINDOW_END, base_date)
