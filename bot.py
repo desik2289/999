@@ -8,8 +8,7 @@ from telegram.ext import Application
 
 # ================== НАСТРОЙКИ ==================
 TOKEN = "8941613345:AAHpkoBvptRPVLt1QCaGW2dKhPD_wPIDYjA"
-CHAT_ID = -1004297426958
-THREAD_ID = 3
+CHAT_ID = -1004428877189
 
 MESSAGE_TEMPLATE = """Время: {time}
 
@@ -114,8 +113,7 @@ async def send_random_message(context):
         text = MESSAGE_TEMPLATE.format(number=number, percent=percent, time=now_msk)
         await context.bot.send_message(
             chat_id=CHAT_ID,
-            text=text,
-            message_thread_id=THREAD_ID
+            text=text
         )
         logging.info(f"Отправлено число: {number} (70% = {percent}) в {now_msk}")
     except Exception as e:
