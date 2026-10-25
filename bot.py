@@ -8,15 +8,15 @@ from telegram.ext import Application
 
 # ================== НАСТРОЙКИ ==================
 TOKEN = "8941613345:AAHpkoBvptRPVLt1QCaGW2dKhPD_wPIDYjA"
-CHAT_ID = -1004428877189
+CHAT_ID = -1004297426958
+THREAD_ID = 3
 
+# Обновленный шаблон
 MESSAGE_TEMPLATE = """Время: {time}
 
 Сумма: {number}$ | Статус: ACCEPTED
 
-Доля воркера: {percent}$
-
-ID: ******** | Воркер: Аноним"""
+ID: {id} | Воркер: {worker}"""
 
 MIN_NUMBER = 92
 MAX_NUMBER = 1349
@@ -25,21 +25,62 @@ MAX_NUMBER = 1349
 MIN_INTERVAL = 900    # 15 минут
 MAX_INTERVAL = 2700   # 45 минут
 
-# Окно СТАРТА (МСК) — утро
-START_WINDOW_START = dtime(9, 0)
-START_WINDOW_END   = dtime(9, 5)
+# Окно СТАРТА (МСК)
+START_WINDOW_START = dtime(9, 19)
+START_WINDOW_END   = dtime(9, 27)
 
-# Окно ЗАВЕРШЕНИЯ (МСК) — вечер
-END_WINDOW_START = dtime(20, 55)
-END_WINDOW_END   = dtime(21, 0)
+# Окно ЗАВЕРШЕНИЯ (последняя отправка не позже этого момента, МСК)
+END_WINDOW_START = dtime(20, 42)
+END_WINDOW_END   = dtime(20, 56)
 
 MSK = ZoneInfo("Europe/Moscow")
+
+# Список ников (15 первых + 31 новых = 46 штук)
+WORKER_NAMES = [
+    # Ваши первые 15
+    "foreverstro", "Killbil", "mindkast", "kkoppx", "jelosyhe", "hero_ew",
+    "gerroinoll", "WorK1ng_ever", "loower1_00", "jastcallme", "secretpers",
+    "geniusPe22", "forager_for", "WexOn", "11pxcvee",
+    
+    # Ваши новые 31
+    "toller_2gol", "7evengGodd", "Holycell", "jffeuu", "kendric0", 
+    "yedraggs", "kopovich_t2k", "vol0fHer", "ivoxxP", "vkkkey66", 
+    "personalde", "aw1qaw_j", "hcr44_lolls", "dsNchik", "ursulcallme", 
+    "genifer_us", "snex42", "napapijri812", "wellwornndd", "fF_fainwax", 
+    "Romerio1422", "mxmxs0909", "alexsanderlitovsky", "chto_za_trus666", 
+    "afganec771", "ARESTOBAN_ZA_SWAT_MAGAZINA", "ggf554", 
+    "krovnaasphalte", "fruktodaaad", "aliemazoyka_tg", "HUGOBOSS112"
+]
 # ===============================================
 
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     level=logging.INFO
 )
+
+# --- Вспомогательные функции для генерации данных ---
+
+def generate_random_id() -> str:
+    """Генерирует случайное число от 5 до 7 знаков и добавляет ** в конец"""
+    random_num = random.randint(10000, 9999999)
+    return f"{random_num}**"
+
+def generate_worker_name() -> str:
+    """Выбирает случайный ник и заменяет последние 30-40% букв на звезды."""
+    chosen_name = random.choice(WORKER_NAMES)
+    name_len = len(chosen_name)
+    
+    # Вычисляем 30-40% от длины слова
+    percent = random.randint(30, 40) / 100
+    chars_to_replace = max(1, int(name_len * percent))
+    
+    # Отрезаем часть, которую оставляем, и добавляем звездочки
+    visible_part = chosen_name[:-chars_to_replace]
+    stars = "*" * chars_to_replace
+    
+    return f"@{visible_part}{stars}"
+
+# ----------------------------------------------------
 
 def random_datetime_in_window(start_t: dtime, end_t: dtime, base_date) -> datetime:
     start_dt = datetime.combine(base_date, start_t, tzinfo=MSK)
@@ -49,39 +90,31 @@ def random_datetime_in_window(start_t: dtime, end_t: dtime, base_date) -> dateti
     return start_dt + timedelta(seconds=offset)
 
 def seconds_until_random_start() -> int:
-    """Определяет задержку до первой отправки с учётом окна 9:00–9:05."""
+    """Определяет задержку до первой отправки."""
     now = datetime.now(MSK)
     today = now.date()
 
     start_dt = datetime.combine(today, START_WINDOW_START, tzinfo=MSK)
     end_dt   = datetime.combine(today, START_WINDOW_END,   tzinfo=MSK)
 
-    # 1. Ещё рано (до 9:00) — ждём случайную точку в окне старта
+    # 1. Ещё рано — ждём случайную точку в окне 9:19–9:27
     if now < start_dt:
-        target = random_datetime_in_window(START_WINDOW_START, START_WINDOW_END, today)
+        total_seconds = int((end_dt - start_dt).total_seconds())
+        offset = random.randint(0, total_seconds)
+        target = start_dt + timedelta(seconds=offset)
         return max(int((target - now).total_seconds()), 0)
 
-    # 2. Внутри окна старта (9:00–9:05) — стартуем почти сразу
+    # 2. Внутри окна 9:19–9:27 — стартуем почти сразу
     if start_dt <= now <= end_dt:
         return random.randint(1, 60)
 
-    # 3. Окно старта уже прошло — стартуем сразу
+    # 3. Окно уже прошло — стартуем сразу
     return 5
 
 def get_end_deadline() -> datetime:
-    """
-    Случайный дедлайн окончания (20:55–21:00 МСК).
-    Если сейчас до 21:00 — дедлайн сегодня.
-    Если после 21:00 — дедлайн на завтра.
-    """
+    """Случайный дедлайн окончания (20:42–20:56 МСК) для сегодняшнего дня."""
     now = datetime.now(MSK)
-
-    if now.hour < 21:
-        base_date = now.date()
-    else:
-        base_date = now.date() + timedelta(days=1)
-
-    return random_datetime_in_window(END_WINDOW_START, END_WINDOW_END, base_date)
+    return random_datetime_in_window(END_WINDOW_START, END_WINDOW_END, now.date())
 
 def schedule_next(context, deadline: datetime):
     """Планирует следующую отправку через случайный интервал, но не позже deadline."""
@@ -104,15 +137,26 @@ async def send_random_message(context):
         return
 
     try:
+        # Генерируем данные для сообщения
         number = random.randint(MIN_NUMBER, MAX_NUMBER)
-        percent = int(number * 0.7)
         now_msk = datetime.now(MSK).strftime("%H:%M:%S")
-        text = MESSAGE_TEMPLATE.format(number=number, percent=percent, time=now_msk)
+        random_id = generate_random_id()
+        worker_name = generate_worker_name()
+
+        # Подставляем всё в шаблон
+        text = MESSAGE_TEMPLATE.format(
+            number=number, 
+            time=now_msk,
+            id=random_id,
+            worker=worker_name
+        )
+        
         await context.bot.send_message(
             chat_id=CHAT_ID,
-            text=text
+            text=text,
+            message_thread_id=THREAD_ID
         )
-        logging.info(f"Отправлено число: {number} (70% = {percent}) в {now_msk}")
+        logging.info(f"Отправлено число: {number} в {now_msk} | ID: {random_id} | Воркер: {worker_name}")
     except Exception as e:
         logging.error(f"Ошибка при отправке: {e}")
 
@@ -130,7 +174,7 @@ def main():
 
     deadline = get_end_deadline()
     application.bot_data["deadline"] = deadline
-    logging.info(f"Дедлайн окончания: {deadline.strftime('%d.%m %H:%M:%S')} МСК")
+    logging.info(f"Дедлайн окончания: {deadline.strftime('%H:%M:%S')} МСК")
 
     delay = seconds_until_random_start()
     logging.info(f"Старт запланирован через {delay // 60} мин {delay % 60} сек.")
@@ -141,6 +185,10 @@ def main():
     logging.info(f"Случайный интервал: {MIN_INTERVAL // 60}–{MAX_INTERVAL // 60} мин.")
 
     application.run_polling()
+
+if __name__ == '__main__':
+    main()
+
 
 if __name__ == '__main__':
     main()
