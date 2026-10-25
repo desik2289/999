@@ -8,8 +8,7 @@ from telegram.ext import Application
 
 # ================== НАСТРОЙКИ ==================
 TOKEN = "8941613345:AAHpkoBvptRPVLt1QCaGW2dKhPD_wPIDYjA"
-CHAT_ID = -1004297426958
-THREAD_ID = 3
+CHAT_ID = -1004428877189
 
 # Обновленный шаблон
 MESSAGE_TEMPLATE = """Время: {time}
@@ -151,10 +150,10 @@ async def send_random_message(context):
             worker=worker_name
         )
         
+        # Отправляем сообщение без привязки к топику (THREAD_ID)
         await context.bot.send_message(
             chat_id=CHAT_ID,
-            text=text,
-            message_thread_id=THREAD_ID
+            text=text
         )
         logging.info(f"Отправлено число: {number} в {now_msk} | ID: {random_id} | Воркер: {worker_name}")
     except Exception as e:
@@ -188,6 +187,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 if __name__ == '__main__':
