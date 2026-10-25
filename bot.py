@@ -1,20 +1,21 @@
 import logging
 import random
 import asyncio
-from datetime import datetime, time as dtime, timedelta
+from datetime import datetime
 from zoneinfo import ZoneInfo
 from telegram import Bot
 from telegram.ext import Application
-from telegram.request import HTTPXRequest # Для настройки прокси/таймаутов
 
 # ================== НАСТРОЙКИ ==================
 TOKEN = "8941613345:AAHpkoBvptRPVLt1QCaGW2dKhPD_wPIDYjA"
 CHAT_ID = -1004428877189
 
-# Обновленный шаблон
+# Обновленный шаблон (доля рассчитывается автоматически)
 MESSAGE_TEMPLATE = """Время: {time}
 
 Сумма: {number}$ | Статус: ACCEPTED
+
+Доля воркера: {share}$
 
 ID: {id} | Воркер: {worker}"""
 
@@ -29,9 +30,12 @@ MSK = ZoneInfo("Europe/Moscow")
 
 # Список ников (15 первых + 31 новых = 46 штук)
 WORKER_NAMES = [
+    # Ваши первые 15
     "foreverstro", "Killbil", "mindkast", "kkoppx", "jelosyhe", "hero_ew",
     "gerroinoll", "WorK1ng_ever", "loower1_00", "jastcallme", "secretpers",
     "geniusPe22", "forager_for", "WexOn", "11pxcvee",
+    
+    # Ваши новые 31
     "toller_2gol", "7evengGodd", "Holycell", "jffeuu", "kendric0", 
     "yedraggs", "kopovich_t2k", "vol0fHer", "ivoxxP", "vkkkey66", 
     "personalde", "aw1qaw_j", "hcr44_lolls", "dsNchik", "ursulcallme", 
@@ -59,9 +63,11 @@ def generate_worker_name() -> str:
     chosen_name = random.choice(WORKER_NAMES)
     name_len = len(chosen_name)
     
+    # Вычисляем 30-40% от длины слова
     percent = random.randint(30, 40) / 100
     chars_to_replace = max(1, int(name_len * percent))
     
+    # Отрезаем часть, которую оставляем, и добавляем звездочки
     visible_part = chosen_name[:-chars_to_replace]
     stars = "*" * chars_to_replace
     
@@ -70,7 +76,7 @@ def generate_worker_name() -> str:
 # ----------------------------------------------------
 
 def schedule_next(context):
-    """Планирует следующую отправку через случайный интервал (круглосуточно)."""
+    """Планирует следующую отправку через случайный интервал."""
     delay = random.randint(MIN_INTERVAL, MAX_INTERVAL)
     
     context.job_queue.run_once(send_random_message, when=delay)
@@ -85,11 +91,15 @@ async def send_random_message(context):
         now_msk = datetime.now(MSK).strftime("%H:%M:%S")
         random_id = generate_random_id()
         worker_name = generate_worker_name()
+        
+        # Считаем 70% от суммы и округляем до целого числа
+        worker_share = round(number * 0.7)
 
         # Подставляем всё в шаблон
         text = MESSAGE_TEMPLATE.format(
             number=number, 
             time=now_msk,
+            share=worker_share,
             id=random_id,
             worker=worker_name
         )
@@ -99,7 +109,7 @@ async def send_random_message(context):
             chat_id=CHAT_ID,
             text=text
         )
-        logging.info(f"Отправлено число: {number} в {now_msk} | ID: {random_id} | Воркер: {worker_name}")
+        logging.info(f"Отправлено: {number}$ | Доля: {worker_share}$ | ID: {random_id} | Воркер: {worker_name}")
     except Exception as e:
         logging.error(f"Ошибка при отправке: {e}")
 
@@ -114,12 +124,9 @@ async def delete_webhook():
 def main():
     asyncio.run(delete_webhook())
 
-    # === НАСТРОЙКА ОБХОДА БЛОКИРОВОК ===
-    # Если у вас ошибка "Timed out", раскомментируйте эти строки и вставьте ваш URL от Cloudflare Worker:
-    # PROXY_URL = "https://ваш-воркер.имя.workers.dev/bot"
-    # application = Application.builder().token(TOKEN).base_url(PROXY_URL).build()
+    # Если у вас ошибка сети (Timeout), раскомментируйте строку ниже и вставьте URL от Cloudflare Worker:
+    # application = Application.builder().token(TOKEN).base_url("https://ваш-воркер.имя.workers.dev/bot").build()
     
-    # Если блокировок нет, используется стандартное подключение:
     application = Application.builder().token(TOKEN).build()
 
     # Запускаем первую отправку через 5 секунд после старта
@@ -132,11 +139,6 @@ def main():
     logging.info(f"Случайный интервал: {MIN_INTERVAL // 60}–{MAX_INTERVAL // 60} мин.")
 
     application.run_polling()
-
-if __name__ == '__main__':
-    main()
-
-
 
 if __name__ == '__main__':
     main()
