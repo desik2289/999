@@ -20,11 +20,11 @@ MESSAGE_TEMPLATE = """Время: {time}
 ID: {id} | Воркер: {worker}"""
 
 MIN_NUMBER = 92
-MAX_NUMBER = 1349
+MAX_NUMBER = 730
 
 # Случайный интервал между отправками (в секундах)
-MIN_INTERVAL = 900    # 15 минут
-MAX_INTERVAL = 2700   # 45 минут
+MIN_INTERVAL = 340    # 15 минут
+MAX_INTERVAL = 2200   # 45 минут
 
 MSK = ZoneInfo("Europe/Moscow")
 
@@ -64,7 +64,7 @@ def generate_worker_name() -> str:
     name_len = len(chosen_name)
     
     # Вычисляем 30-40% от длины слова
-    percent = random.randint(30, 40) / 100
+    percent = 40 / 100
     chars_to_replace = max(1, int(name_len * percent))
     
     # Отрезаем часть, которую оставляем, и добавляем звездочки
